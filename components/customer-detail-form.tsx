@@ -21,6 +21,9 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
+import { LicenseUsageCard } from "@/components/license-usage-card"
+import { LicenseAssignmentDialogDemo } from "@/components/license-assignment-dialog-demo"
+import { License } from '@/types/auth'
 
 const customerSchema = z.object({
   id: z.number(),
@@ -75,8 +78,62 @@ const mockLinkedContacts = [
   { id: 5, name: "Spazio srl stp", type: "cliente", location: "Vilminore Di Scalve BG", status: "attivo" }
 ]
 
+// Mock license data for demo
+const mockLicensesData: License[] = [
+  {
+    id: 1,
+    user_id: 1,
+    module_id: 1,
+    quantity_total: 100,
+    quantity_used: 25,
+    activation_date: '2025-01-01',
+    expiration_date: '2026-01-01',
+    status: 'active',
+    module: {
+      id: 1,
+      name: 'report_de_minimis',
+      display_name: 'Report De Minimis',
+      is_active: true,
+    }
+  },
+  {
+    id: 2,
+    user_id: 1,
+    module_id: 2,
+    quantity_total: 200,
+    quantity_used: 180,
+    activation_date: '2024-12-01',
+    expiration_date: '2025-12-01',
+    status: 'active',
+    module: {
+      id: 2,
+      name: 'analisi_bilancio',
+      display_name: 'Analisi Bilancio',
+      is_active: true,
+    }
+  },
+  {
+    id: 3,
+    user_id: 1,
+    module_id: 3,
+    quantity_total: 50,
+    quantity_used: 45,
+    activation_date: '2024-06-01',
+    expiration_date: '2025-10-15',
+    status: 'active',
+    module: {
+      id: 3,
+      name: 'analisi_centrale_rischi',
+      display_name: 'Analisi Centrale Rischi',
+      is_active: true,
+    }
+  },
+];
+
 export function CustomerDetailForm({ customer }: CustomerDetailFormProps) {
   const [currentStep, setCurrentStep] = React.useState(1)
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = React.useState(false)
+  const canManageLicenses = true // Simulating superuser role
 
   const steps = [
     { id: 1, title: "Anagrafica", description: "Informazioni aziendali di base", icon: Building2 },
@@ -605,43 +662,36 @@ export function CustomerDetailForm({ customer }: CustomerDetailFormProps) {
                 <p className="text-muted-foreground">Gestisci la configurazione moduli e permessi.</p>
               </div>
             </div>
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Licenze Associate</h3>
-            <Button>
-              <IconPlus className="w-4 h-4 mr-2" />
-              crea nuova licenza
-            </Button>
-          </div>
 
-          <div className="space-y-4">
-            {mockLicenses.map((license) => (
-              <Card key={license.id}>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-3 h-3 rounded bg-green-500"></div>
-                      <div>
-                        <div className="font-medium">{license.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {license.status}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-medium">{license.dateRange}</div>
-                      <div className="text-sm text-muted-foreground">{license.duration}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-medium">prezzo {license.price}</div>
-                      <div className="text-sm text-muted-foreground">
-                        utilizzo {license.usage.current} / {license.usage.max}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Licenze Assegnate</CardTitle>
+                  <CardDescription>
+                    Tutte le licenze attive per questo cliente
+                  </CardDescription>
+                </div>
+                {canManageLicenses && (
+                  <Button onClick={() => setIsAssignDialogOpen(true)}>
+                    <IconPlus className="w-4 h-4 mr-2" />
+                    Assegna Licenza
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {mockLicensesData.map((license) => (
+                  <LicenseUsageCard
+                    key={license.id}
+                    license={license}
+                    showActions={canManageLicenses}
+                  />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
           </div>
         )}
 
@@ -674,6 +724,16 @@ export function CustomerDetailForm({ customer }: CustomerDetailFormProps) {
           </Button>
         </div>
       </div>
+
+      {/* License Assignment Dialog */}
+      {canManageLicenses && (
+        <LicenseAssignmentDialogDemo
+          open={isAssignDialogOpen}
+          onOpenChange={setIsAssignDialogOpen}
+          userId={customer.id}
+          userName={customer.name}
+        />
+      )}
     </div>
   )
 }

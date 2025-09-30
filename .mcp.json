@@ -3,8 +3,7 @@
     "shadcn": {
       "command": "npx",
       "args": [
-        "shadcn@latest",
-        "mcp"
+        "@jpisnice/shadcn-ui-mcp-server"
       ]
     },
     "playwright": {

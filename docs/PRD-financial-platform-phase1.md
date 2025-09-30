@@ -1,8 +1,8 @@
 # PRD - Financial Analysis Platform (Phase 1)
 **Product Requirements Document**
 
-Version: 1.0  
-Date: September 2025  
+Version: 2.0
+Date: September 2025
 Target: Frontend Developer with Backend Integration Overview
 
 ---
@@ -10,6 +10,8 @@ Target: Frontend Developer with Backend Integration Overview
 ## Project Overview
 
 Development of a multi-tenant financial analysis platform inspired by Formula Finance, featuring user management, licensing system, and report generation capabilities.
+
+**Architecture Note:** The platform operates on a **1 user = 1 customer** model. There is no separation between users and contacts/customers. Each user account represents a client entity with their own licenses and reports.
 
 **Technology Stack:**
 - **Backend:** FastAPI (Python) + PostgreSQL
@@ -24,9 +26,50 @@ This phase includes the **core foundation** of the platform:
 
 1. **Authentication System** - Multi-role login with Google OAuth and traditional email/password
 2. **User Management** - Role-based access control (Superuser, Commercial, Client)
-3. **Contact Management** - CRUD operations for client contacts/companies
-4. **License System** - License assignment and consumption tracking
-5. **Single Report Module** - Basic report workflow with external API integration
+3. **License System** - License assignment to users and consumption tracking
+4. **Single Report Module** - Basic report workflow with external API integration
+
+---
+
+## Phase 1 - Most Urgent Tasks
+
+### 1. Role-Based Access Control (RBAC) - **CRITICAL**
+- [ ] Create `types/auth.ts` with UserRole types ('superuser', 'commercial', 'client')
+- [ ] Implement `useAuth()` hook with role checking functions
+- [ ] Add route guards for commercial/superuser-only pages
+- [ ] Implement role-based UI component visibility
+
+### 2. License Management Module - **CORE FEATURE**
+- [ ] Create user detail page showing assigned licenses
+- [ ] Build license assignment UI (superuser only)
+- [ ] Display license usage tracking (quantity_total vs quantity_used)
+- [ ] Add license validation before report creation
+- [ ] Implement license consumption on report generation
+
+### 3. Reports Module - **CORE FEATURE**
+- [ ] Build `/reports` page with role-based filtering
+  - Clients see only their own reports
+  - Commercial/Superuser see all reports
+- [ ] Create `/reports/new` page with module selection
+- [ ] Implement report status tracking component
+- [ ] Add report download functionality
+- [ ] Integrate license consumption workflow
+
+### 4. Role-Based Dashboard Enhancement - **HIGH PRIORITY**
+- [ ] Client dashboard: Display personal licenses & reports
+- [ ] Commercial dashboard: Quick access to users list, recent activity
+- [ ] Superuser dashboard: System overview, license management access
+
+### 5. Enhanced User Management - **MEDIUM PRIORITY**
+- [ ] Add business fields to users (business_name, vat_number, tax_code, etc.)
+- [ ] Implement user search/filter functionality
+- [ ] Add user status management (active/inactive)
+
+### 6. Backend Integration Testing - **CRITICAL**
+- [ ] Test FastAPI auth provider with real backend
+- [ ] Validate data provider against FastAPI conventions
+- [ ] Test license consumption flow end-to-end
+- [ ] Switch from fake data to production providers
 
 ---
 
@@ -43,52 +86,36 @@ CREATE TABLE users (
     google_id VARCHAR(255) UNIQUE, -- nullable for email/password users
     role user_role_enum NOT NULL, -- 'superuser', 'commercial', 'client'
     is_active BOOLEAN DEFAULT TRUE,
+
+    -- Personal information
     first_name VARCHAR(100),
     last_name VARCHAR(100),
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
 
-CREATE TYPE user_role_enum AS ENUM ('superuser', 'commercial', 'client');
-```
-
-### `contacts` table
-```sql
-CREATE TABLE contacts (
-    id SERIAL PRIMARY KEY,
-    business_name VARCHAR(255) NOT NULL,
+    -- Business information (for client users)
+    business_name VARCHAR(255),
     vat_number VARCHAR(50),
     tax_code VARCHAR(50),
-    contact_type contact_type_enum DEFAULT 'client',
     subject_category subject_category_enum,
-    status contact_status_enum DEFAULT 'active',
-    
+
     -- Contact information
-    email VARCHAR(255) NOT NULL,
-    pec_email VARCHAR(255),
     phone VARCHAR(50),
-    phone_alt VARCHAR(50),
-    
+    pec_email VARCHAR(255),
+
     -- Address
     address VARCHAR(255),
     city VARCHAR(100),
     postal_code VARCHAR(20),
     province VARCHAR(10),
     country VARCHAR(10) DEFAULT 'IT',
-    
-    -- Relationships
-    parent_contact_id INTEGER REFERENCES contacts(id),
-    
+
     -- Metadata
     notes TEXT,
-    created_by INTEGER REFERENCES users(id),
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TYPE contact_type_enum AS ENUM ('client', 'reseller', 'intermediary', 'potential');
+CREATE TYPE user_role_enum AS ENUM ('superuser', 'commercial', 'client');
 CREATE TYPE subject_category_enum AS ENUM ('professional', 'company', 'public_administration');
-CREATE TYPE contact_status_enum AS ENUM ('active', 'inactive', 'suspended');
 ```
 
 ### `modules` table
@@ -112,7 +139,7 @@ CREATE TABLE modules (
 ```sql
 CREATE TABLE licenses (
     id SERIAL PRIMARY KEY,
-    contact_id INTEGER REFERENCES contacts(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     module_id INTEGER REFERENCES modules(id) ON DELETE CASCADE,
     quantity_total INTEGER NOT NULL DEFAULT 1,
     quantity_used INTEGER NOT NULL DEFAULT 0,
@@ -121,7 +148,7 @@ CREATE TABLE licenses (
     status license_status_enum DEFAULT 'active',
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
-    
+
     CONSTRAINT check_quantity_used CHECK (quantity_used <= quantity_total),
     CONSTRAINT check_dates CHECK (expiration_date > activation_date)
 );
@@ -133,17 +160,16 @@ CREATE TYPE license_status_enum AS ENUM ('active', 'expired', 'suspended');
 ```sql
 CREATE TABLE reports (
     id SERIAL PRIMARY KEY,
-    contact_id INTEGER REFERENCES contacts(id),
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     module_id INTEGER REFERENCES modules(id),
-    requested_by INTEGER REFERENCES users(id),
-    
+
     -- Report data
     report_type VARCHAR(100) NOT NULL,
     status report_status_enum DEFAULT 'pending',
     input_data JSONB, -- Store form data/parameters
     api_response JSONB, -- Store API response
     generated_html TEXT, -- Final HTML report
-    
+
     -- Metadata
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
@@ -224,53 +250,50 @@ Get current user profile and dashboard data
 }
 ```
 
-## Contact Management Endpoints
+## User Management Endpoints
 
-### GET `/contacts` (Commercial/Superuser only)
+### GET `/users` (Commercial/Superuser only)
 **Query Parameters:**
-- `page`: number (default: 1)
-- `limit`: number (default: 50)  
+- `skip`: number (default: 0)
+- `limit`: number (default: 50)
 - `search`: string (search in business_name, email, vat_number)
-- `contact_type`: enum filter
-- `status`: enum filter
+- `role`: enum filter ('client', 'commercial', 'superuser')
+- `is_active`: boolean filter
 
 **Response:**
 ```json
 {
-    "contacts": [
+    "items": [
         {
             "id": 45,
+            "email": "amm_mail@baglionispa.com",
+            "role": "client",
             "business_name": "Gruppo Baglioni",
             "vat_number": "01169330030",
-            "email": "amm_mail@baglionispa.com",
-            "contact_type": "reseller",
-            "status": "active",
+            "is_active": true,
             "address": "VIA DANTE ALIGHIERI, 8",
             "city": "S.PIETRO MOSEZZO",
             "province": "NO"
         }
     ],
-    "pagination": {
-        "page": 1,
-        "limit": 50,
-        "total": 1608,
-        "pages": 33
-    }
+    "total": 1608
 }
 ```
 
-### GET `/contacts/{contact_id}` (Commercial/Superuser only)
+### GET `/users/{user_id}` (Commercial/Superuser only, or own profile)
 **Response:**
 ```json
 {
     "id": 45,
+    "email": "amm_mail@baglionispa.com",
+    "role": "client",
+    "first_name": "Mario",
+    "last_name": "Rossi",
     "business_name": "Gruppo Baglioni",
     "vat_number": "01169330030",
     "tax_code": "01169330030",
-    "contact_type": "reseller",
     "subject_category": "company",
-    "status": "active",
-    "email": "amm_mail@baglionispa.com",
+    "is_active": true,
     "pec_email": "baglioni@pec-mail.it",
     "phone": "0321/485211",
     "address": "VIA DANTE ALIGHIERI, 8",
@@ -294,15 +317,15 @@ Get current user profile and dashboard data
 }
 ```
 
-### POST `/contacts` (Commercial/Superuser only)
-Create new contact
+### POST `/users` (Superuser only)
+Create new user account
 
-### PUT `/contacts/{contact_id}` (Commercial/Superuser only)  
-Update contact
+### PUT `/users/{user_id}` (Superuser only, or own profile for basic fields)
+Update user information
 
 ## License Management Endpoints
 
-### POST `/contacts/{contact_id}/licenses` (Superuser only)
+### POST `/users/{user_id}/licenses` (Superuser only)
 **Body:**
 ```json
 {
@@ -316,13 +339,19 @@ Update contact
 ### GET `/licenses` (Superuser only)
 Global license overview with pagination and filters
 
+**Query Parameters:**
+- `skip`: number (default: 0)
+- `limit`: number (default: 50)
+- `user_id`: filter by user
+- `module_id`: filter by module
+- `status`: filter by status
+
 ## Report Generation Endpoints
 
-### POST `/reports/new`
+### POST `/reports`
 **Body:**
 ```json
 {
-    "contact_id": 45,
     "module_id": 1,
     "report_type": "balance_analysis",
     "input_data": {
@@ -333,35 +362,34 @@ Global license overview with pagination and filters
     }
 }
 ```
+**Note:** The user_id is automatically extracted from the JWT token. The system will validate that the user has available licenses for the specified module.
 
 **Response:**
 ```json
 {
-    "report_id": 1001,
+    "id": 1001,
     "status": "pending",
     "message": "Report creation initiated"
 }
 ```
 
-### GET `/reports/{report_id}/status`
-**Response:**
-```json
-{
-    "id": 1001,
-    "status": "processing",
-    "progress": 45,
-    "estimated_completion": "2025-09-10T16:30:00Z"
-}
-```
+### GET `/reports` (Clients see only their own, Commercial/Superuser see all)
+**Query Parameters:**
+- `skip`: number (default: 0)
+- `limit`: number (default: 50)
+- `user_id`: filter by user (Commercial/Superuser only)
+- `module_id`: filter by module
+- `status`: filter by status
 
 ### GET `/reports/{report_id}`
 **Response:**
 ```json
 {
     "id": 1001,
-    "contact": {
+    "user": {
         "id": 45,
-        "business_name": "Gruppo Baglioni"
+        "business_name": "Gruppo Baglioni",
+        "email": "amm_mail@baglionispa.com"
     },
     "module": {
         "name": "balance_analysis",
@@ -404,12 +432,16 @@ export function useAuth() {
     const hasRole = (roles: UserRole[]): boolean => {
         return user ? roles.includes(user.role) : false;
     };
-    
-    const canAccessContacts = (): boolean => {
+
+    const canManageUsers = (): boolean => {
         return hasRole(['superuser', 'commercial']);
     };
-    
-    return { user, hasRole, canAccessContacts };
+
+    const canManageLicenses = (): boolean => {
+        return hasRole(['superuser']);
+    };
+
+    return { user, hasRole, canManageUsers, canManageLicenses };
 }
 ```
 
@@ -424,50 +456,54 @@ export function useAuth() {
 **All roles access this page with different content:**
 
 - **Client role:** Personal licenses overview, own reports
-- **Commercial role:** Quick access to contacts, recent activity
-- **Superuser role:** System overview, all modules access
+- **Commercial role:** Quick access to users list, recent activity
+- **Superuser role:** System overview, license management access
 
-### 3. Contacts Management (`/contacts`) 
+### 3. Users Management (`/users`)
 **Access: Commercial + Superuser only**
 
-- Contact list with search/filters
-- Contact detail pages (`/contacts/[id]`)
-- License management within contact details
+- User list with search/filters (role-based filtering)
+- User detail pages (`/users/{id}`)
+- License management within user details (Superuser only)
 
 ### 4. Reports (`/reports`)
 **Different access levels per role:**
 
 - **Client:** Only own reports
-- **Commercial/Superuser:** All reports with filtering
+- **Commercial/Superuser:** All reports with filtering by user
 
 ### 5. New Report (`/reports/new`)
-- Module selection (based on available licenses)
+- Module selection (based on user's available licenses)
 - Form for report parameters
 - Progress tracking after submission
+- License consumption notification
 
 ## Key Components
 
-### Contact Detail Component
+### User Detail Component
 ```typescript
-// components/ContactDetail.tsx
-interface ContactDetailProps {
-    contactId: number;
+// components/UserDetail.tsx
+interface UserDetailProps {
+    userId: number;
 }
 
-export function ContactDetail({ contactId }: ContactDetailProps) {
-    const { data: contact } = useContact(contactId);
-    const { hasRole } = useAuth();
-    
+export function UserDetail({ userId }: UserDetailProps) {
+    const { data: user } = useGetOne('users', { id: userId });
+    const { canManageLicenses } = useAuth();
+
     return (
-        <div className="contact-detail">
-            {/* Basic contact information */}
-            <ContactInfo contact={contact} />
-            
-            {/* License management section - only for commercial/superuser */}
-            {hasRole(['commercial', 'superuser']) && (
-                <LicenseManagement 
-                    contactId={contactId} 
-                    licenses={contact.licenses} 
+        <div className="user-detail">
+            {/* Basic user information */}
+            <UserInfo user={user} />
+
+            {/* License overview - visible to all */}
+            <LicenseOverview licenses={user.licenses} />
+
+            {/* License management section - only for superuser */}
+            {canManageLicenses() && (
+                <LicenseManagement
+                    userId={userId}
+                    licenses={user.licenses}
                 />
             )}
         </div>
@@ -509,11 +545,11 @@ interface AuthState {
     loading: boolean;
 }
 
-// store/slices/contactsSlice.ts  
-interface ContactsState {
-    contacts: Contact[];
-    currentContact: Contact | null;
-    filters: ContactFilters;
+// store/slices/usersSlice.ts
+interface UsersState {
+    users: User[];
+    currentUser: User | null;
+    filters: UserFilters;
     pagination: PaginationInfo;
 }
 

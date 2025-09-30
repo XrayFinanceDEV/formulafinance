@@ -4,6 +4,7 @@ import { useState } from "react"
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
+import { useRouter } from "next/navigation"
 import * as z from "zod"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle, Circle, ArrowRight, ArrowLeft, Building2, User, MapPin, CreditCard, Settings } from "lucide-react"
+import { useCreateCustomer, type Customer } from "@/hooks/use-customers"
+import { toast } from "sonner"
 
 // Step 1: Anagrafica Schema
 const anagraficaSchema = z.object({
@@ -95,6 +98,9 @@ export function CustomerForm() {
   const [currentStep, setCurrentStep] = useState(1)
   const [selectedModules, setSelectedModules] = useState<string[]>([])
   const [userType, setUserType] = useState<string>("cliente")
+  const router = useRouter()
+
+  const { createCustomer, isLoading: isCreating } = useCreateCustomer()
 
   const form = useForm<CustomerFormValues>({
     resolver: zodResolver(customerFormSchema),
@@ -207,54 +213,50 @@ export function CustomerForm() {
     form.setValue("licenze.moduli", updatedModules)
   }
 
-  const onSubmit = (values: CustomerFormValues) => {
-    // Clean up the data based on user type
-    const cleanedValues = { ...values }
+  const onSubmit = async (values: CustomerFormValues) => {
+    try {
+      // Map the customer type to match our data structure
+      const typeMap: Record<string, Customer['type']> = {
+        'cliente': 'Cliente',
+        'rivenditore': 'Rivenditore',
+        'intermediario': 'Intermediario',
+        'potenziale': 'Potenziale'
+      }
 
-    // If user type is rivenditore or intermediario, they cannot have a parent
-    if (values.anagrafica.tipoUtente === "rivenditore" || values.anagrafica.tipoUtente === "intermediario") {
-      cleanedValues.relazioni.parentId = undefined
+      // Calculate initial license usage (start at 0 for new customers)
+      const totalLicenses = values.licenze.moduli.reduce((acc, modulo) => acc + modulo.quantita, 0)
+
+      // Map status
+      const statusMap: Record<string, Customer['status']> = {
+        'attivo': 'Attivo',
+        'disabilitato': 'Attivo' // We don't have a disabled status in our Customer type
+      }
+
+      // Create customer data matching our Customer interface
+      const customerData: Omit<Customer, 'id' | 'joinDate'> = {
+        name: values.anagrafica.ragioneSociale,
+        email: values.riferimenti.email,
+        type: typeMap[values.anagrafica.tipoUtente] || 'Cliente',
+        licenseUsage: 0, // Start at 0 for new customers
+        maxLicenses: totalLicenses || 10, // Default to 10 if no licenses configured
+        status: statusMap[values.anagrafica.stato] || 'Attivo'
+      }
+
+      // Save to fake API
+      await createCustomer(customerData)
+
+      toast.success('Cliente creato con successo!', {
+        description: `${customerData.name} è stato aggiunto al sistema.`
+      })
+
+      // Redirect to customers list
+      router.push('/customers')
+    } catch (error) {
+      console.error('Error creating customer:', error)
+      toast.error('Errore durante la creazione', {
+        description: 'Si è verificato un errore durante il salvataggio del cliente.'
+      })
     }
-
-    console.log("Form submitted:", cleanedValues)
-
-    // Here you would submit to your API
-    // Example API structure:
-    const apiPayload = {
-      // Anagrafica
-      ragione_sociale: cleanedValues.anagrafica.ragioneSociale,
-      partita_iva: cleanedValues.anagrafica.partitaIva,
-      codice_fiscale: cleanedValues.anagrafica.codiceFiscale,
-      tipo_utente: cleanedValues.anagrafica.tipoUtente,
-      soggetto: cleanedValues.anagrafica.soggetto,
-      stato: cleanedValues.anagrafica.stato,
-
-      // Riferimenti
-      email: cleanedValues.riferimenti.email,
-      pec_email: cleanedValues.riferimenti.pecEmail,
-      telefono: cleanedValues.riferimenti.telefono,
-      telefono_alt: cleanedValues.riferimenti.telefonoAlt,
-
-      // Indirizzo
-      indirizzo: cleanedValues.indirizzo.via,
-      citta: cleanedValues.indirizzo.citta,
-      cap: cleanedValues.indirizzo.cap,
-      provincia: cleanedValues.indirizzo.provincia,
-
-      // Relazioni
-      parent_contact_id: cleanedValues.relazioni.parentId || null,
-      note_aggiuntive: cleanedValues.relazioni.noteAggiuntive,
-
-      // Licenze
-      licenze: cleanedValues.licenze.moduli.map(modulo => ({
-        modulo_id: parseInt(modulo.moduloId),
-        quantita: modulo.quantita,
-        data_attivazione: modulo.dataAttivazione,
-        data_scadenza: modulo.dataScadenza,
-      }))
-    }
-
-    console.log("API Payload:", apiPayload)
   }
 
   return (
@@ -795,8 +797,12 @@ export function CustomerForm() {
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             ) : (
-              <Button type="submit" className="bg-primary hover:bg-primary/90">
-                💾 Salva Contatto
+              <Button
+                type="submit"
+                className="bg-primary hover:bg-primary/90"
+                disabled={isCreating}
+              >
+                {isCreating ? "Salvataggio..." : "💾 Salva Contatto"}
               </Button>
             )}
           </div>
