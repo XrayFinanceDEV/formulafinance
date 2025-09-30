@@ -1,0 +1,152 @@
+[
+  {
+    "id": 1,
+    "name": "Acme Corporation",
+    "email": "contact@acme.corp",
+    "type": "Cliente",
+    "licenseUsage": 85,
+    "maxLicenses": 500,
+    "status": "Attivo",
+    "joinDate": "2023-01-15"
+  },
+  {
+    "id": 2,
+    "name": "TechStart Solutions",
+    "email": "admin@techstart.io",
+    "type": "Rivenditore",
+    "licenseUsage": 92,
+    "maxLicenses": 100,
+    "status": "Attivo",
+    "joinDate": "2023-03-22"
+  },
+  {
+    "id": 3,
+    "name": "Global Industries Ltd",
+    "email": "it@globalind.com",
+    "type": "Cliente",
+    "licenseUsage": 67,
+    "maxLicenses": 1000,
+    "status": "Attivo",
+    "joinDate": "2022-11-08"
+  },
+  {
+    "id": 4,
+    "name": "Innovation Labs",
+    "email": "team@innovationlabs.net",
+    "type": "Intermediario",
+    "licenseUsage": 78,
+    "maxLicenses": 50,
+    "status": "Attivo",
+    "joinDate": "2023-05-14"
+  },
+  {
+    "id": 5,
+    "name": "Digital Dynamics",
+    "email": "support@digitaldyn.com",
+    "type": "Potenziale",
+    "licenseUsage": 45,
+    "maxLicenses": 200,
+    "status": "Attivo",
+    "joinDate": "2023-02-10"
+  },
+  {
+    "id": 6,
+    "name": "MetaCorp Systems",
+    "email": "contact@metacorp.io",
+    "type": "Rivenditore",
+    "licenseUsage": 98,
+    "maxLicenses": 750,
+    "status": "Attenzione",
+    "joinDate": "2022-09-30"
+  },
+  {
+    "id": 7,
+    "name": "StartupXYZ",
+    "email": "hello@startupxyz.com",
+    "type": "Potenziale",
+    "licenseUsage": 34,
+    "maxLicenses": 25,
+    "status": "Oltre il limite",
+    "joinDate": "2023-07-19"
+  },
+  {
+    "id": 8,
+    "name": "Enterprise Solutions Group",
+    "email": "admin@esg.enterprise",
+    "type": "Cliente",
+    "licenseUsage": 72,
+    "maxLicenses": 2000,
+    "status": "Attivo",
+    "joinDate": "2022-05-03"
+  },
+  {
+    "id": 9,
+    "name": "CloudFirst Technologies",
+    "email": "tech@cloudfirst.dev",
+    "type": "Rivenditore",
+    "licenseUsage": 89,
+    "maxLicenses": 150,
+    "status": "Attivo",
+    "joinDate": "2023-04-12"
+  },
+  {
+    "id": 10,
+    "name": "NextGen Analytics",
+    "email": "data@nextgen.analytics",
+    "type": "Intermediario",
+    "licenseUsage": 56,
+    "maxLicenses": 75,
+    "status": "Attivo",
+    "joinDate": "2023-06-08"
+  },
+  {
+    "id": 11,
+    "name": "AlphaTech Partners",
+    "email": "partners@alphatech.biz",
+    "type": "Cliente",
+    "licenseUsage": 94,
+    "maxLicenses": 300,
+    "status": "Attivo",
+    "joinDate": "2022-12-15"
+  },
+  {
+    "id": 12,
+    "name": "DevOps Central",
+    "email": "ops@devopscentral.org",
+    "type": "Potenziale",
+    "licenseUsage": 23,
+    "maxLicenses": 40,
+    "status": "Attivo",
+    "joinDate": "2023-08-25"
+  },
+  {
+    "id": 13,
+    "name": "ScaleUp Ventures",
+    "email": "growth@scaleup.ventures",
+    "type": "Rivenditore",
+    "licenseUsage": 81,
+    "maxLicenses": 180,
+    "status": "Attivo",
+    "joinDate": "2023-01-30"
+  },
+  {
+    "id": 14,
+    "name": "FutureTech Industries",
+    "email": "contact@futuretech.industries",
+    "type": "Cliente",
+    "licenseUsage": 91,
+    "maxLicenses": 1200,
+    "status": "Attivo",
+    "joinDate": "2022-08-17"
+  },
+  {
+    "id": 15,
+    "name": "Agile Solutions Inc",
+    "email": "team@agilesolutions.inc",
+    "type": "Intermediario",
+    "licenseUsage": 67,
+    "maxLicenses": 60,
+    "status": "Attivo",
+    "joinDate": "2023-03-05"
+  }
+]
