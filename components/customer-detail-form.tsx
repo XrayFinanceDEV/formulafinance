@@ -2,9 +2,11 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { IconArrowLeft, IconCheck, IconPlus, IconX } from "@tabler/icons-react"
 import { Building2, User, MapPin, CreditCard, Settings, CheckCircle, Circle, ArrowRight, ArrowLeft } from "lucide-react"
 import { z } from "zod"
+import { sqliteDataProvider } from '@/lib/sqlite-data-provider'
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,6 +26,7 @@ import { Separator } from "@/components/ui/separator"
 import { LicenseUsageCard } from "@/components/license-usage-card"
 import { LicenseAssignmentDialogDemo } from "@/components/license-assignment-dialog-demo"
 import { License } from '@/types/auth'
+import { useToast } from '@/hooks/use-toast'
 
 const customerSchema = z.object({
   id: z.number(),
@@ -131,6 +134,9 @@ const mockLicensesData: License[] = [
 ];
 
 export function CustomerDetailForm({ customer }: CustomerDetailFormProps) {
+  const router = useRouter()
+  const { toast } = useToast()
+  const [isUpdating, setIsUpdating] = React.useState(false)
   const [currentStep, setCurrentStep] = React.useState(1)
   const [isAssignDialogOpen, setIsAssignDialogOpen] = React.useState(false)
   const canManageLicenses = true // Simulating superuser role
@@ -143,13 +149,13 @@ export function CustomerDetailForm({ customer }: CustomerDetailFormProps) {
   ]
 
   const [formData, setFormData] = React.useState({
-    ragioneSociale: customer.name,
+    ragioneSociale: customer.name || '',
     partitaIva: "01316560331",
     codiceFiscale: "01316560331",
-    tipoUtente: customer.type.toLowerCase(),
-    soggetto: "società",
-    stato: customer.status.toLowerCase(),
-    email: customer.email,
+    tipoUtente: customer.type?.toLowerCase() || 'cliente',
+    soggetto: "societa", // Database expects "societa" not "società"
+    stato: customer.status?.toLowerCase() || 'attivo',
+    email: customer.email || '',
     pecEmail: "",
     telefono: "",
     telefonoAlt: "",
@@ -163,6 +169,53 @@ export function CustomerDetailForm({ customer }: CustomerDetailFormProps) {
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleSave = async () => {
+    setIsUpdating(true)
+    try {
+      await sqliteDataProvider.update('customers', {
+        id: customer.id,
+        data: {
+          ragione_sociale: formData.ragioneSociale,
+          email: formData.email,
+          tipo_utente: formData.tipoUtente,
+          stato: formData.stato,
+          partita_iva: formData.partitaIva,
+          codice_fiscale: formData.codiceFiscale,
+          soggetto: formData.soggetto,
+          pec_email: formData.pecEmail,
+          telefono: formData.telefono,
+          telefono_alt: formData.telefonoAlt,
+          via: formData.indirizzo,
+          citta: formData.città,
+          cap: formData.cap,
+          provincia: formData.provincia,
+          note_aggiuntive: formData.noteAggiuntive,
+        },
+        previousData: customer,
+      })
+
+      toast({
+        title: "Successo",
+        description: "Cliente aggiornato con successo",
+      })
+
+      router.push('/customers')
+    } catch (error) {
+      toast({
+        title: "Errore",
+        description: "Errore durante l'aggiornamento del cliente",
+        variant: "destructive",
+      })
+      console.error('Update error:', error)
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
+  const handleCancel = () => {
+    router.push('/customers')
   }
 
   const getInitials = (name: string) => {
@@ -220,12 +273,12 @@ export function CustomerDetailForm({ customer }: CustomerDetailFormProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleCancel} disabled={isUpdating}>
             annulla
           </Button>
-          <Button size="sm">
+          <Button size="sm" onClick={handleSave} disabled={isUpdating}>
             <IconCheck className="w-4 h-4 mr-1" />
-            Salva
+            {isUpdating ? 'Salvataggio...' : 'Salva'}
           </Button>
         </div>
       </div>
@@ -700,20 +753,21 @@ export function CustomerDetailForm({ customer }: CustomerDetailFormProps) {
           <Button
             variant="outline"
             onClick={prevStep}
-            disabled={currentStep === 1}
+            disabled={currentStep === 1 || isUpdating}
             className="flex items-center gap-2"
           >
             <ArrowLeft className="w-4 h-4" />
             Indietro
           </Button>
           <Button
-            onClick={currentStep === steps.length ? undefined : nextStep}
+            onClick={currentStep === steps.length ? handleSave : nextStep}
+            disabled={isUpdating}
             className="flex items-center gap-2"
           >
             {currentStep === steps.length ? (
               <>
                 <IconCheck className="w-4 h-4" />
-                Salva Modifiche
+                {isUpdating ? 'Salvataggio...' : 'Salva Modifiche'}
               </>
             ) : (
               <>

@@ -3,8 +3,10 @@
 import React from 'react';
 import { DataProviderContext, AuthContext } from 'ra-core';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { dataProvider } from './data-provider';
-import { authProvider } from './auth-provider';
+// import { dataProvider } from './data-provider'; // Fake data provider (in-memory)
+import { sqliteDataProvider as dataProvider } from './sqlite-data-provider'; // SQLite data provider (persistent)
+// import { authProvider } from './auth-provider'; // Fake auth provider
+import { supabaseAuthProvider as authProvider } from './supabase-auth-provider'; // Supabase auth provider
 
 interface AdminProviderProps {
   children: React.ReactNode;

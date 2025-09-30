@@ -26,7 +26,13 @@ This is a **Next.js 15 App Router** application with the following structure:
   - `app/dashboard/` - Main dashboard page with financial data visualization
   - `app/customers/` - Customer management (list, create, edit, detail views)
   - `app/reports/` - Report management (list, create, detail views)
-  - `app/login/` - Authentication page
+  - `app/auth/` - Supabase authentication pages (login, callback)
+  - `app/profile/` - User profile management
+  - `app/api/` - Next.js API routes for data operations
+    - `app/api/customers/` - Customer CRUD operations
+    - `app/api/licenses/` - License management operations
+    - `app/api/modules/` - Module listing operations
+    - `app/api/reports/` - Report management operations
 - `components/` - Reusable UI components
   - `components/ui/` - shadcn/ui base components (button, table, dialog, calendar, progress, etc.)
   - `components/app-sidebar.tsx` - Main navigation sidebar
@@ -40,10 +46,15 @@ This is a **Next.js 15 App Router** application with the following structure:
 - `lib/` - Utilities and providers
   - `lib/utils.ts` - Utility functions (e.g., `cn()` for className merging)
   - `lib/ra-core-config.tsx` - React-admin CoreAdmin wrapper and configuration
-  - `lib/data-provider.ts` - Fake data provider using `ra-data-fakerest` (for development)
-  - `lib/fastapi-data-provider.ts` - FastAPI data provider (ready for production backend)
-  - `lib/auth-provider.ts` - Fake authentication provider (for development)
-  - `lib/fastapi-auth-provider.ts` - FastAPI auth provider (ready for production backend)
+  - `lib/sqlite-data-provider.ts` - **Active**: SQLite data provider via API routes
+  - `lib/supabase-auth-provider.ts` - **Active**: Supabase authentication provider
+  - `lib/db/sqlite.ts` - SQLite database utilities and helpers
+  - `lib/supabase/client.ts` - Supabase client configuration
+  - `lib/supabase/server.ts` - Server-side Supabase utilities
+  - `lib/data-provider.ts` - Fake data provider (development alternative)
+  - `lib/auth-provider.ts` - Fake auth provider (development alternative)
+  - `lib/fastapi-data-provider.ts` - FastAPI data provider (Python backend alternative)
+  - `lib/fastapi-auth-provider.ts` - FastAPI auth provider (Python backend alternative)
   - `lib/products-data.ts` - Product/module definitions and mock data
 - `hooks/` - Custom React hooks
   - `hooks/use-customers.ts` - Customer data fetching via ra-core
@@ -87,11 +98,15 @@ The dashboard follows a sidebar + main content layout pattern:
 
 **Data Management:**
 - ra-core (react-admin core) for data provider pattern
-- ra-data-fakerest for development (fake in-memory data)
-- ra-data-simple-rest for REST API integration
-- Custom FastAPI data provider ready for production backend
-- Custom hooks (useGetList, useGetOne, etc.) from ra-core
+- better-sqlite3 for SQLite database operations
+- Custom SQLite data provider via Next.js API routes
 - @tanstack/react-query for data fetching and caching
+- Custom hooks (useGetList, useGetOne, etc.) from ra-core
+
+**Authentication:**
+- @supabase/supabase-js for authentication
+- @supabase/ssr for server-side rendering support
+- Supabase Auth with email/password authentication
 
 **Development:**
 - ESLint with Next.js config
@@ -135,13 +150,13 @@ Use `npx shadcn add [component-name]` to add new shadcn/ui components.
 - **Report Detail**: View report results and generated content
 
 ### Authentication & Authorization
-- **Login System**: Email/password authentication
-- **Role-Based Access Control (RBAC)**:
-  - `superuser`: Full system access
-  - `commercial`: Customer and license management
-  - `client`: Limited access to own data
+- **Login System**: Supabase Auth with email/password
+  - Login page: `app/auth/login/page.tsx`
+  - Callback handling: `app/auth/callback/route.ts`
+  - User profile: `app/profile/page.tsx`
+- **Session Management**: Server-side cookies via Supabase SSR
 - **Route Protection**: AuthGuard component for protected routes
-- **Session Management**: Token-based authentication ready for production
+- **User Management**: Profile editing and user information display
 
 ### Dashboard & Analytics
 - **Financial Dashboard**: Main dashboard with data visualization
@@ -160,51 +175,63 @@ The application uses **ra-core** (react-admin's headless core) for data manageme
 - **Hooks**: `useGetList`, `useGetOne`, `useCreate`, `useUpdate`, `useDelete` from ra-core
 - **Resources**: Currently configured: `customers`, `licenses`, `products`, `modules`, `reports`
 
-### Current Setup (Development)
+### Current Setup (Active)
 
-- **Data Provider**: `ra-data-fakerest` with in-memory fake data
-  - File: `lib/data-provider.ts`
-  - Data sources: Mock data in `lib/products-data.ts` and inline data
-  - Network delay: 300ms simulation
-  - Request logging: Enabled
-  - Resources: customers, licenses, products, modules, reports
+**Database: SQLite with better-sqlite3**
+- **Data Provider**: SQLite data provider via Next.js API routes
+  - File: `lib/sqlite-data-provider.ts`
+  - Database: `data/formulafinance.db` (persistent SQLite database)
+  - API Routes: `app/api/customers/`, `app/api/licenses/`, `app/api/modules/`, `app/api/reports/`
+  - Database utilities: `lib/db/sqlite.ts`
+  - Schema: See database migration files or API route implementations
 
-- **Auth Provider**: Fake auth provider for development
-  - File: `lib/auth-provider.ts`
-  - Hardcoded credentials for testing
-  - Test users: demo@example.com / admin@example.com
-  - Role-based access control (superuser, commercial, client)
+- **Auth Provider**: Supabase authentication
+  - File: `lib/supabase-auth-provider.ts`
+  - Supabase client: `lib/supabase/client.ts`
+  - Server-side auth: `lib/supabase/server.ts`
+  - Authentication flow: Email/password with Supabase Auth
+  - Session management: Server-side cookies via Supabase
+  - Configuration: See `docs/SUPABASE_SETUP.md`
 
-### Production Setup (Ready)
+**API Routes Structure:**
+- `app/api/customers/route.ts` - GET (list), POST (create)
+- `app/api/customers/[id]/route.ts` - GET (one), PUT (update), DELETE
+- `app/api/licenses/route.ts` - GET (list), POST (create)
+- `app/api/licenses/[id]/route.ts` - GET (one), PUT (update), DELETE
+- `app/api/modules/route.ts` - GET (list modules)
+- `app/api/reports/route.ts` - GET (list), POST (create)
+- `app/api/reports/[id]/route.ts` - GET (one), PUT (update), DELETE
 
-- **Data Provider**: Custom FastAPI adapter
-  - File: `lib/fastapi-data-provider.ts`
-  - Expects FastAPI conventions: `skip`/`limit`, `{ items: [], total: number }`
-  - Bearer token authentication
-  - Error handling with auto-redirect on 401/403
+### Alternative Setup Options
 
-- **Auth Provider**: FastAPI auth adapter
-  - File: `lib/fastapi-auth-provider.ts`
-  - JWT token management
-  - LocalStorage token persistence
+**Option 1: Fake Data (Development Only)**
+- File: `lib/data-provider.ts` + `lib/auth-provider.ts`
+- In-memory data with `ra-data-fakerest`
+- Fake auth with hardcoded credentials
+- Good for: UI development, prototyping
 
-### Switching to Production
+**Option 2: FastAPI Backend (Production Ready)**
+- Files: `lib/fastapi-data-provider.ts` + `lib/fastapi-auth-provider.ts`
+- REST API integration with FastAPI backend
+- JWT token authentication
+- Good for: Python backend integration
 
-To connect to the FastAPI backend, update `lib/ra-core-config.tsx`:
+### Switching Data/Auth Providers
+
+Update `lib/ra-core-config.tsx`:
 
 ```typescript
-// Change from:
+// Current (SQLite + Supabase):
+import { sqliteDataProvider as dataProvider } from './sqlite-data-provider';
+import { supabaseAuthProvider as authProvider } from './supabase-auth-provider';
+
+// For fake data (development):
 import { dataProvider } from './data-provider';
 import { authProvider } from './auth-provider';
 
-// To:
+// For FastAPI backend:
 import { fastApiDataProvider as dataProvider } from './fastapi-data-provider';
 import { fastApiAuthProvider as authProvider } from './fastapi-auth-provider';
-```
-
-Set environment variable:
-```
-NEXT_PUBLIC_API_URL=https://your-backend-api.com/api/v1
 ```
 
 ## Development Best Practices
@@ -248,26 +275,44 @@ NEXT_PUBLIC_API_URL=https://your-backend-api.com/api/v1
 
 ## Project Status
 
-**Current Phase**: Development with mock data
+**Current Phase**: Active Development with SQLite + Supabase
 
 **Completed Features**:
-- ✅ Customer management (CRUD operations)
-- ✅ License management and assignment
-- ✅ Report request and viewing system
-- ✅ Authentication and role-based access control
-- ✅ Dashboard with data visualization
-- ✅ Responsive sidebar navigation
-- ✅ Form validation and error handling
+- ✅ **Database Layer**: SQLite with better-sqlite3 (`data/formulafinance.db`)
+- ✅ **API Routes**: Full CRUD operations via Next.js API routes
+- ✅ **Authentication**: Supabase Auth with email/password
+- ✅ **Customer Management**: Complete CRUD operations with persistent storage
+  - Multi-step customer creation form with validation
+  - Customer listing with pagination and search
+  - Customer detail view with license management
+  - Customer editing functionality
+- ✅ **License Management**: License assignment and tracking
+- ✅ **Report Management**: Report request and viewing system
+- ✅ **Dashboard**: Data visualization with Recharts
+- ✅ **Responsive UI**: Sidebar navigation with shadcn/ui
+- ✅ **Form Validation**: react-hook-form with Zod schemas
+- ✅ **User Profile**: Profile page with user information
 
-**Ready for Production**:
-- ✅ FastAPI data provider implementation
-- ✅ FastAPI auth provider implementation
-- ✅ TypeScript type definitions
-- ✅ Error handling and loading states
+**Recent Fixes**:
+- ✅ Fixed customer creation form to save data to SQLite database
+- ✅ Updated form data mapping to match database schema (snake_case)
+- ✅ Verified data persistence in `data/formulafinance.db`
+
+**Known Issues**:
+- ⚠️ License usage calculation shows "NaN%" (needs implementation)
+- ⚠️ Auth session warnings in console (Supabase session management)
+- ⚠️ Profile page needs Supabase user data integration
 
 **Next Steps**:
-1. Connect to FastAPI backend (update `lib/ra-core-config.tsx`)
-2. Set up environment variables for API URL
-3. Test all CRUD operations with real backend
-4. Implement additional report types
-5. Add more data visualizations to dashboard
+1. Fix license usage percentage calculation in customer table
+2. Implement license assignment API endpoints
+3. Connect license data to customer records
+4. Add more report types and processing logic
+5. Enhance dashboard with real-time data
+6. Implement role-based access control (RBAC)
+7. Add data export functionality
+8. Improve error handling and user feedback
+
+**Alternative Backend Options**:
+- FastAPI backend integration available (`lib/fastapi-data-provider.ts`)
+- Fake data provider for UI development (`lib/data-provider.ts`)

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { canEditCustomers, canDeleteCustomers, UserRole } from '@/lib/auth-provider';
-import { dataProvider } from '@/lib/data-provider';
+import { sqliteDataProvider as dataProvider } from '@/lib/sqlite-data-provider';
 import { authProvider } from '@/lib/auth-provider';
 
 export interface Customer {
@@ -13,6 +13,24 @@ export interface Customer {
   maxLicenses: number;
   status: 'Attivo' | 'Attenzione' | 'Oltre il limite';
   joinDate: string;
+}
+
+// Transform database record to Customer interface
+function transformDbToCustomer(dbRecord: any): Customer {
+  return {
+    id: dbRecord.id,
+    name: dbRecord.ragione_sociale || dbRecord.name || 'Unknown',
+    email: dbRecord.email || '',
+    type: capitalizeFirstLetter(dbRecord.tipo_utente || dbRecord.type || 'cliente') as Customer['type'],
+    licenseUsage: dbRecord.licenseUsage || 0,
+    maxLicenses: dbRecord.maxLicenses || 0,
+    status: capitalizeFirstLetter(dbRecord.stato || dbRecord.status || 'attivo') as Customer['status'],
+    joinDate: dbRecord.created_at || dbRecord.joinDate || new Date().toISOString(),
+  };
+}
+
+function capitalizeFirstLetter(str: string): string {
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }
 
 export interface CustomerFilters {
@@ -44,7 +62,12 @@ export function useCustomers(
         sort,
         filter,
       });
-      return result;
+
+      // Transform database records to Customer interface
+      return {
+        data: result.data.map(transformDbToCustomer),
+        total: result.total,
+      };
     },
   });
 }
@@ -54,7 +77,9 @@ export function useCustomer(id: number) {
     queryKey: ['customers', 'getOne', { id }],
     queryFn: async () => {
       const result = await dataProvider.getOne('customers', { id });
-      return result;
+      return {
+        data: transformDbToCustomer(result.data),
+      };
     },
   });
 }

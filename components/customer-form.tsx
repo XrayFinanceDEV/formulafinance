@@ -215,38 +215,32 @@ export function CustomerForm() {
 
   const onSubmit = async (values: CustomerFormValues) => {
     try {
-      // Map the customer type to match our data structure
-      const typeMap: Record<string, Customer['type']> = {
-        'cliente': 'Cliente',
-        'rivenditore': 'Rivenditore',
-        'intermediario': 'Intermediario',
-        'potenziale': 'Potenziale'
-      }
-
-      // Calculate initial license usage (start at 0 for new customers)
-      const totalLicenses = values.licenze.moduli.reduce((acc, modulo) => acc + modulo.quantita, 0)
-
-      // Map status
-      const statusMap: Record<string, Customer['status']> = {
-        'attivo': 'Attivo',
-        'disabilitato': 'Attivo' // We don't have a disabled status in our Customer type
-      }
-
-      // Create customer data matching our Customer interface
-      const customerData: Omit<Customer, 'id' | 'joinDate'> = {
-        name: values.anagrafica.ragioneSociale,
+      // Create customer data matching the database schema (snake_case)
+      const customerData = {
+        ragione_sociale: values.anagrafica.ragioneSociale,
+        partita_iva: values.anagrafica.partitaIva,
+        codice_fiscale: values.anagrafica.codiceFiscale || null,
+        tipo_utente: values.anagrafica.tipoUtente,
+        soggetto: values.anagrafica.soggetto,
+        stato: values.anagrafica.stato,
         email: values.riferimenti.email,
-        type: typeMap[values.anagrafica.tipoUtente] || 'Cliente',
-        licenseUsage: 0, // Start at 0 for new customers
-        maxLicenses: totalLicenses || 10, // Default to 10 if no licenses configured
-        status: statusMap[values.anagrafica.stato] || 'Attivo'
+        pec_email: values.riferimenti.pecEmail || null,
+        telefono: values.riferimenti.telefono,
+        telefono_alt: values.riferimenti.telefonoAlt || null,
+        via: values.indirizzo.via,
+        citta: values.indirizzo.citta,
+        cap: values.indirizzo.cap,
+        provincia: values.indirizzo.provincia,
+        paese: 'IT',
+        parent_id: values.relazioni.parentId || null,
+        note_aggiuntive: values.relazioni.noteAggiuntive || null,
       }
 
-      // Save to fake API
-      await createCustomer(customerData)
+      // Save to SQLite via API
+      await createCustomer(customerData as any)
 
       toast.success('Cliente creato con successo!', {
-        description: `${customerData.name} è stato aggiunto al sistema.`
+        description: `${customerData.ragione_sociale} è stato aggiunto al sistema.`
       })
 
       // Redirect to customers list
