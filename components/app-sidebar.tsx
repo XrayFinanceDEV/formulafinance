@@ -32,40 +32,59 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+import { useAuth } from "@/lib/auth/auth-provider"
+import { UserRole } from "@/types/rbac"
 
-const data = {
-  navMain: [
-    {
-      title: "Dashboard",
-      url: "/dashboard",
-      icon: IconDashboard,
-    },
-    {
-      title: "Clienti",
-      url: "/customers",
-      icon: IconUsers,
-    },
-    {
-      title: "Elaborazioni",
-      url: "/reports",
-      icon: IconReport,
-    },
-    {
-      title: "Archivio",
-      url: "/archive",
-      icon: IconFolder,
-    },
-  ],
-  navSecondary: [
-    {
-      title: "Impostazioni",
-      url: "/settings",
-      icon: IconSettings,
-    },
-  ],
-}
+const allNavItems = [
+  {
+    title: "Dashboard",
+    url: "/dashboard",
+    icon: IconDashboard,
+    allowedRoles: ['cliente', 'potenziale', 'rivenditore', 'intermediario', 'superadmin'] as UserRole[],
+  },
+  {
+    title: "Clienti",
+    url: "/customers",
+    icon: IconUsers,
+    allowedRoles: ['rivenditore', 'intermediario', 'superadmin'] as UserRole[],
+  },
+  {
+    title: "Elaborazioni",
+    url: "/reports",
+    icon: IconReport,
+    allowedRoles: ['cliente', 'potenziale', 'rivenditore', 'intermediario', 'superadmin'] as UserRole[],
+  },
+  {
+    title: "Archivio",
+    url: "/archive",
+    icon: IconFolder,
+    allowedRoles: ['cliente', 'potenziale', 'rivenditore', 'intermediario', 'superadmin'] as UserRole[],
+  },
+]
+
+const secondaryNavItems = [
+  {
+    title: "Impostazioni",
+    url: "/settings",
+    icon: IconSettings,
+    allowedRoles: ['cliente', 'potenziale', 'rivenditore', 'intermediario', 'superadmin'] as UserRole[],
+  },
+]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { role } = useAuth()
+
+  // Filter nav items based on user role
+  const filteredNavMain = React.useMemo(() => {
+    if (!role) return []
+    return allNavItems.filter(item => item.allowedRoles.includes(role))
+  }, [role])
+
+  const filteredNavSecondary = React.useMemo(() => {
+    if (!role) return []
+    return secondaryNavItems.filter(item => item.allowedRoles.includes(role))
+  }, [role])
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -88,8 +107,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
+        <NavMain items={filteredNavMain} />
+        <NavSecondary items={filteredNavSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
         <NavUser />

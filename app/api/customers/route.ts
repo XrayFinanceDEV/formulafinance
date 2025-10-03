@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
     // Filters
     const tipo_utente = searchParams.get('tipo_utente');
     const stato = searchParams.get('stato');
+    const owner_user_id = searchParams.get('owner_user_id');
 
     // Build query
     const db = getDatabase();
@@ -39,10 +40,12 @@ export async function GET(request: NextRequest) {
     const filters: Record<string, any> = {};
     if (tipo_utente) filters.tipo_utente = tipo_utente;
     if (stato) filters.stato = stato;
+    if (owner_user_id) filters.owner_user_id = owner_user_id;
 
     const { where: filterWhere, params: filterParams } = buildWhereClause(filters, [
       'tipo_utente',
       'stato',
+      'owner_user_id',
     ]);
 
     // Build search clause

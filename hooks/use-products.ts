@@ -1,34 +1,23 @@
-import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Product } from '@/types/auth';
 import { PRODUCTS } from '@/lib/products-data';
 
 /**
- * Hook to fetch all products/modules
- * For now, uses static data. Can be updated to use ra-core when backend is ready.
+ * Hook to fetch all products/modules from the database
  */
 export function useProducts() {
-  const [data, setData] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  useEffect(() => {
-    try {
-      // Simulate async loading
-      setTimeout(() => {
-        setData(PRODUCTS.filter(p => p.is_active));
-        setIsLoading(false);
-      }, 100);
-    } catch (err) {
-      setError(err as Error);
-      setIsLoading(false);
-    }
-  }, []);
-
-  return {
-    data,
-    isLoading,
-    error,
-  };
+  return useQuery<Product[]>({
+    queryKey: ['modules'],
+    queryFn: async () => {
+      const response = await fetch('/api/modules');
+      if (!response.ok) {
+        throw new Error('Failed to fetch modules');
+      }
+      const result = await response.json();
+      return result.data || [];
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
 }
 
 /**

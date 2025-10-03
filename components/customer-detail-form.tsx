@@ -7,7 +7,7 @@ import { IconArrowLeft, IconCheck, IconPlus, IconX } from "@tabler/icons-react"
 import { Building2, User, MapPin, CreditCard, Settings, CheckCircle, Circle, ArrowRight, ArrowLeft } from "lucide-react"
 import { z } from "zod"
 import { useUpdateCustomer } from '@/hooks/use-customers-query'
-import { useUserLicenses } from '@/hooks/use-licenses-query'
+import { useUserLicenses, useDeleteLicense } from '@/hooks/use-licenses-query'
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -142,6 +142,7 @@ export function CustomerDetailForm({ customer }: CustomerDetailFormProps) {
   const { mutateAsync: updateCustomer, isPending: isUpdating } = useUpdateCustomer()
   const { data: associations, refetch: refetchAssociations } = useCustomerAssociations(customer.id)
   const { data: licensesResponse, isLoading: isLoadingLicenses, refetch: refetchLicenses } = useUserLicenses(customer.id)
+  const { mutateAsync: deleteLicense } = useDeleteLicense()
   const [isSaving, setIsSaving] = React.useState(false)
   const [currentStep, setCurrentStep] = React.useState(1)
   const [isAssignDialogOpen, setIsAssignDialogOpen] = React.useState(false)
@@ -258,11 +259,13 @@ export function CustomerDetailForm({ customer }: CustomerDetailFormProps) {
     }
 
     try {
-      // TODO: Implement license revocation API call
+      await deleteLicense(license.id)
       toast({
         title: "Licenza Revocata",
         description: `La licenza "${license.module?.display_name}" è stata revocata.`,
       })
+      // Refetch licenses to update the UI
+      refetchLicenses()
     } catch (error) {
       toast({
         title: "Errore",

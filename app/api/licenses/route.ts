@@ -36,14 +36,21 @@ export async function GET(request: NextRequest) {
 
     const { where, params } = buildWhereClause(filters, ['customer_id', 'module_id', 'status']);
 
-    // Build ORDER BY clause
+    // Build ORDER BY clause with table prefix to avoid ambiguity
+    const mappedSortField = sortField === 'user_id' ? 'customer_id' : sortField;
     const orderBy = buildOrderByClause(
-      sortField === 'user_id' ? 'customer_id' : sortField,
+      mappedSortField,
       sortOrder,
       ['id', 'customer_id', 'module_id', 'status', 'activation_date', 'expiration_date', 'created_at'],
       'id',
       'DESC'
-    );
+    ).replace('ORDER BY id', 'ORDER BY l.id')
+     .replace('ORDER BY customer_id', 'ORDER BY l.customer_id')
+     .replace('ORDER BY module_id', 'ORDER BY l.module_id')
+     .replace('ORDER BY status', 'ORDER BY l.status')
+     .replace('ORDER BY activation_date', 'ORDER BY l.activation_date')
+     .replace('ORDER BY expiration_date', 'ORDER BY l.expiration_date')
+     .replace('ORDER BY created_at', 'ORDER BY l.created_at');
 
     // Base query with JOIN to get module info
     const baseQuery = `

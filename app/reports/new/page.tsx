@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
@@ -16,11 +16,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useModules } from "@/hooks/use-modules-query"
 import { useCreateReport } from "@/hooks/use-reports-query"
+import { useAuth } from "@/lib/auth/auth-provider"
 import { toast } from "sonner"
 import { IconFileText, IconChartBar, IconReportMoney } from "@tabler/icons-react"
 
 export default function NewReportPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const { data: modules, isLoading } = useModules();
   const { mutateAsync: createReport, isPending: isCreating } = useCreateReport();
 
@@ -28,12 +30,34 @@ export default function NewReportPage() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showFormDialog, setShowFormDialog] = useState(false);
   const [codiceFiscale, setCodiceFiscale] = useState('');
+  const [customerIdCache, setCustomerIdCache] = useState<number | null>(null);
 
   const moduleIcons = {
     de_minimis: IconReportMoney,
     balance_analysis: IconChartBar,
     cr_analysis: IconFileText,
   };
+
+  // Fetch customer ID for authenticated user
+  useEffect(() => {
+    async function fetchCustomerId() {
+      if (!user?.id) return;
+
+      try {
+        const response = await fetch(`/api/customers?owner_user_id=${user.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.data && data.data.length > 0) {
+            setCustomerIdCache(data.data[0].id);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching customer ID:', error);
+      }
+    }
+
+    fetchCustomerId();
+  }, [user]);
 
   const handleRequestClick = (module: any) => {
     setSelectedModule(module);
@@ -48,11 +72,14 @@ export default function NewReportPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedModule || !codiceFiscale) return;
+    if (!selectedModule || !codiceFiscale || !customerIdCache) {
+      toast.error('Impossibile identificare il cliente');
+      return;
+    }
 
     try {
       await createReport({
-        customer_id: 1, // TODO: Get actual customer ID from authenticated user
+        customer_id: customerIdCache,
         module_id: selectedModule.id,
         report_type: selectedModule.name,
         input_data: { codice_fiscale: codiceFiscale },
@@ -67,8 +94,9 @@ export default function NewReportPage() {
       setTimeout(() => {
         router.push('/reports');
       }, 2000);
-    } catch (error) {
-      toast.error('Errore nella creazione del report');
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Errore nella creazione del report';
+      toast.error(errorMessage);
     }
   };
 

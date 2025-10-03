@@ -14,13 +14,30 @@ import { AppSidebar } from '@/components/app-sidebar';
 import { SiteHeader } from '@/components/site-header';
 import { toast } from 'sonner';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { License } from '@/types/auth';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Calendar, AlertCircle } from 'lucide-react';
 
 function ProfilePageContent() {
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, role, loading } = useAuth();
   const [name, setName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [userLicenses, setUserLicenses] = useState<License[]>([]);
+  const [licensesLoading, setLicensesLoading] = useState(false);
+
+  // Show licenses for cliente and potenziale users
+  const showLicenses = role === 'cliente' || role === 'potenziale';
 
   // Initialize form when user loads
   useEffect(() => {
@@ -29,6 +46,25 @@ function ProfilePageContent() {
       setAvatarUrl(user.user_metadata?.avatar_url || '');
     }
   }, [user, loading]);
+
+  // Fetch user licenses for cliente and potenziale users
+  useEffect(() => {
+    if (!loading && showLicenses) {
+      setLicensesLoading(true);
+      fetch('/api/user-licenses')
+        .then(res => res.json())
+        .then(data => {
+          setUserLicenses(data.data || []);
+        })
+        .catch(error => {
+          console.error('Error fetching licenses:', error);
+          toast.error('Errore durante il caricamento delle licenze');
+        })
+        .finally(() => {
+          setLicensesLoading(false);
+        });
+    }
+  }, [loading, showLicenses]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -94,7 +130,7 @@ function ProfilePageContent() {
         />
 
         <div className="flex flex-1 flex-col gap-4 p-4">
-          <div className="mx-auto w-full max-w-2xl">
+          <div className="mx-auto w-full max-w-6xl space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>Informazioni Profilo</CardTitle>
@@ -171,6 +207,102 @@ function ProfilePageContent() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Licenses Section - Only for cliente and potenziale users */}
+            {showLicenses && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Le Tue Licenze</CardTitle>
+                  <CardDescription>
+                    Visualizza le licenze disponibili e il loro utilizzo
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {licensesLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <p className="text-muted-foreground">Caricamento licenze...</p>
+                    </div>
+                  ) : userLicenses.length === 0 ? (
+                    <div className="flex items-center justify-center py-8">
+                      <p className="text-muted-foreground">Nessuna licenza disponibile</p>
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Prodotto</TableHead>
+                          <TableHead>Stato</TableHead>
+                          <TableHead>Disponibili</TableHead>
+                          <TableHead>Utilizzate</TableHead>
+                          <TableHead>Totali</TableHead>
+                          <TableHead>Utilizzo</TableHead>
+                          <TableHead>Scadenza</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {userLicenses.map((license) => {
+                          const remaining = license.quantity_total - license.quantity_used;
+                          const usagePercentage = Math.round((license.quantity_used / license.quantity_total) * 100);
+                          const expirationDate = new Date(license.expiration_date);
+                          const isExpired = expirationDate < new Date() || license.status === 'expired';
+                          const thirtyDaysFromNow = new Date();
+                          thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+                          const isExpiringSoon = expirationDate <= thirtyDaysFromNow && expirationDate > new Date();
+
+                          return (
+                            <TableRow key={license.id}>
+                              <TableCell className="font-medium">
+                                {license.module?.display_name || `Modulo ${license.module_id}`}
+                              </TableCell>
+                              <TableCell>
+                                {isExpired ? (
+                                  <Badge variant="destructive">Scaduta</Badge>
+                                ) : license.status === 'suspended' ? (
+                                  <Badge variant="secondary">Sospesa</Badge>
+                                ) : isExpiringSoon ? (
+                                  <Badge variant="outline" className="border-yellow-500 text-yellow-600">
+                                    In scadenza
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="default" className="bg-green-500">Attiva</Badge>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <span className={remaining === 0 ? 'text-red-600 font-semibold' : 'text-green-600 font-semibold'}>
+                                  {remaining}
+                                </span>
+                              </TableCell>
+                              <TableCell>{license.quantity_used}</TableCell>
+                              <TableCell>{license.quantity_total}</TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2 min-w-[150px]">
+                                  <Progress
+                                    value={usagePercentage}
+                                    className="h-2"
+                                  />
+                                  <span className="text-xs text-muted-foreground min-w-[40px]">
+                                    {usagePercentage}%
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1">
+                                  {isExpired && <AlertCircle className="h-4 w-4 text-red-600" />}
+                                  {isExpiringSoon && !isExpired && <AlertCircle className="h-4 w-4 text-yellow-600" />}
+                                  <span className={isExpired ? 'text-red-600' : isExpiringSoon ? 'text-yellow-600' : ''}>
+                                    {expirationDate.toLocaleDateString('it-IT')}
+                                  </span>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </SidebarInset>

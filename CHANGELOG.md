@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **User License Dashboard** (2025-10-03)
+  - Added `/api/user-licenses` endpoint for fetching user's licenses
+    - Authenticates current Supabase user
+    - Finds all customers owned by user via `owner_user_id`
+    - Returns licenses with nested module information
+  - Enhanced profile page (`/profile`) for cliente and potenziale users:
+    - Added licenses table view replacing card-based display
+    - Table columns: Prodotto, Stato, Disponibili, Utilizzate, Totali, Utilizzo, Scadenza
+    - Real-time license consumption tracking
+    - Visual indicators:
+      - Status badges (Attiva/Scaduta/In scadenza/Sospesa)
+      - Color-coded available licenses (green/red)
+      - Progress bars showing usage percentage
+      - Warning icons for expiring/expired licenses
+    - Role-based visibility (only cliente and potenziale users see licenses)
+  - License consumption integrated with report creation:
+    - `quantity_used` auto-increments when reports are created
+    - License validation before report creation
+    - Automatic license limit enforcement
+
 ### Fixed
 
 - **License Management System** (2025-10-03)
