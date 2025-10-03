@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useState } from "react"
-import { supabaseAuthProvider as authProvider } from "@/lib/supabase-auth-provider"
+import { useAuth } from "@/lib/auth/auth-provider"
 import { toast } from "sonner"
 
 export function LoginForm({
@@ -16,13 +16,14 @@ export function LoginForm({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      await authProvider.login({ username: email, password });
+      await login(email, password);
       // Redirect to dashboard after successful login
       window.location.href = '/dashboard';
     } catch (error: any) {
@@ -33,14 +34,7 @@ export function LoginForm({
   };
 
   const handleOAuthLogin = async (provider: 'google' | 'apple' | 'facebook') => {
-    try {
-      setLoading(true);
-      await authProvider.login({ provider });
-      // The redirect happens automatically in the auth provider
-    } catch (error: any) {
-      toast.error(error.message || `Failed to login with ${provider}`);
-      setLoading(false);
-    }
+    toast.info(`OAuth login with ${provider} not yet implemented`);
   };
 
   return (

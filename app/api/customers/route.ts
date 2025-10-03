@@ -7,6 +7,7 @@ import {
   buildOrderByClause,
   execute,
 } from '@/lib/db/sqlite';
+import { createUserWithRole, type UserRole } from '@/lib/supabase/admin';
 
 /**
  * GET /api/customers
@@ -112,7 +113,7 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/customers
- * Create a new customer
+ * Create a new customer with Supabase auth user and role
  */
 export async function POST(request: NextRequest) {
   try {
@@ -124,6 +125,68 @@ export async function POST(request: NextRequest) {
         { error: 'Missing required fields' },
         { status: 400 }
       );
+    }
+
+    // Validate password if provided (for creating auth user)
+    if (body.password && body.password.length < 6) {
+      return NextResponse.json(
+        { error: 'Password must be at least 6 characters' },
+        { status: 400 }
+      );
+    }
+
+    // Map tipo_utente to UserRole
+    const tipoUtenteToRole: Record<string, UserRole> = {
+      'cliente': 'cliente',
+      'potenziale': 'potenziale',
+      'rivenditore': 'rivenditore',
+      'intermediario': 'intermediario',
+    };
+
+    const role = tipoUtenteToRole[body.tipo_utente];
+    if (!role) {
+      return NextResponse.json(
+        { error: 'Invalid tipo_utente value' },
+        { status: 400 }
+      );
+    }
+
+    let supabaseUserId: string | null = null;
+
+    // Create Supabase auth user if password is provided
+    if (body.password) {
+      try {
+        const supabaseUser = await createUserWithRole(
+          body.email,
+          body.password,
+          role,
+          {
+            full_name: body.ragione_sociale,
+            ragione_sociale: body.ragione_sociale,
+            partita_iva: body.partita_iva,
+          }
+        );
+
+        supabaseUserId = supabaseUser.user.id;
+
+        // Insert role into user_roles table
+        const db = getDatabase();
+        db.prepare(`
+          INSERT INTO user_roles (user_id, role, created_at, updated_at)
+          VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `).run(supabaseUserId, role);
+
+        console.log(`✅ Created Supabase user with role ${role} for ${body.email}`);
+      } catch (authError: any) {
+        console.error('Error creating Supabase user:', authError);
+        return NextResponse.json(
+          {
+            error: 'Failed to create authentication user',
+            message: authError.message || String(authError)
+          },
+          { status: 500 }
+        );
+      }
     }
 
     // Insert customer
@@ -161,7 +224,11 @@ export async function POST(request: NextRequest) {
       .prepare('SELECT * FROM customers WHERE id = ?')
       .get(result.lastInsertRowid);
 
-    return NextResponse.json({ data: customer }, { status: 201 });
+    return NextResponse.json({
+      data: customer,
+      auth_user_created: !!supabaseUserId,
+      supabase_user_id: supabaseUserId,
+    }, { status: 201 });
   } catch (error) {
     console.error('Error creating customer:', error);
     return NextResponse.json(

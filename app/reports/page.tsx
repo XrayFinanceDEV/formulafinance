@@ -18,8 +18,8 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { useReports } from "@/hooks/use-reports"
-import { useModules } from "@/hooks/use-modules"
+import { useReports } from "@/hooks/use-reports-query"
+import { useModules } from "@/hooks/use-modules-query"
 import { IconPlus } from "@tabler/icons-react"
 
 const statusConfig = {
@@ -31,7 +31,7 @@ const statusConfig = {
 
 export default function ReportsPage() {
   const router = useRouter();
-  const { data: reports, isLoading } = useReports();
+  const { data: reports, isPending: isLoading } = useReports();
   const { data: modules } = useModules();
 
   const getModuleName = (moduleId: number) => {

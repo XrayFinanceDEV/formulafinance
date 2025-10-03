@@ -2,23 +2,23 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { authProvider } from '@/lib/auth-provider';
+import { useAuth } from '@/lib/auth/auth-provider';
 
 export default function Home() {
   const router = useRouter();
+  const { user, loading } = useAuth();
 
   useEffect(() => {
-    // Check if user is authenticated and redirect accordingly
-    authProvider.checkAuth({})
-      .then(() => {
+    if (!loading) {
+      if (user) {
         // User is authenticated, redirect to dashboard
         router.push('/dashboard');
-      })
-      .catch(() => {
+      } else {
         // User is not authenticated, redirect to login
         router.push('/login');
-      });
-  }, [router]);
+      }
+    }
+  }, [user, loading, router]);
 
   return (
     <div className="flex min-h-screen items-center justify-center">

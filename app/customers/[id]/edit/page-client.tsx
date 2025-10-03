@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from 'react'
-import { sqliteDataProvider } from '@/lib/sqlite-data-provider'
+import { useCustomer } from '@/hooks/use-customers-query'
 import { AppSidebar } from "@/components/app-sidebar"
 import { CustomerDetailForm } from "@/components/customer-detail-form"
 import { SiteHeader } from "@/components/site-header"
@@ -15,24 +15,7 @@ interface CustomerEditPageClientProps {
 }
 
 export function CustomerEditPageClient({ customerId }: CustomerEditPageClientProps) {
-  const [customer, setCustomer] = React.useState<any>(null)
-  const [isLoading, setIsLoading] = React.useState(true)
-  const [error, setError] = React.useState<any>(null)
-
-  React.useEffect(() => {
-    const fetchCustomer = async () => {
-      try {
-        const result = await sqliteDataProvider.getOne('customers', { id: customerId })
-        setCustomer(result.data)
-      } catch (err) {
-        setError(err)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchCustomer()
-  }, [customerId])
+  const { data: customer, isPending: isLoading, error } = useCustomer(parseInt(customerId))
 
   if (isLoading) {
     return (
@@ -105,6 +88,20 @@ export function CustomerEditPageClient({ customerId }: CustomerEditPageClientPro
     maxLicenses: 0,
     status: customer.status || customer.stato || 'attivo',
     joinDate: customer.created_at || new Date().toISOString(),
+    // Include all customer fields from database
+    partita_iva: customer.partita_iva || '',
+    codice_fiscale: customer.codice_fiscale || '',
+    soggetto: customer.soggetto || 'societa',
+    pec_email: customer.pec_email || '',
+    telefono: customer.telefono || '',
+    telefono_alt: customer.telefono_alt || '',
+    via: customer.via || '',
+    citta: customer.citta || '',
+    cap: customer.cap || '',
+    provincia: customer.provincia || '',
+    paese: customer.paese || 'IT',
+    note_aggiuntive: customer.note_aggiuntive || '',
+    parent_id: customer.parent_id || null,
   }
 
   return (

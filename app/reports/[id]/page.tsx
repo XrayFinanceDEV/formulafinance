@@ -11,8 +11,8 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { useReport } from "@/hooks/use-reports"
-import { useModule } from "@/hooks/use-modules"
+import { useReport } from "@/hooks/use-reports-query"
+import { useModule } from "@/hooks/use-modules-query"
 import { IconArrowLeft, IconDownload } from "@tabler/icons-react"
 
 const statusConfig = {
@@ -27,7 +27,7 @@ export default function ReportDetailPage() {
   const router = useRouter();
   const reportId = params.id as string;
 
-  const { data: report, isLoading } = useReport(reportId);
+  const { data: report, isPending: isLoading } = useReport(reportId);
   const { data: module } = useModule(report?.module_id || 0);
 
   const formatDate = (dateString?: string) => {

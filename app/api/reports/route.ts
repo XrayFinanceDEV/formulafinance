@@ -36,21 +36,22 @@ export async function GET(request: NextRequest) {
 
     const { where, params } = buildWhereClause(filters, ['customer_id', 'module_id', 'status']);
 
-    // Build ORDER BY clause
+    // Build ORDER BY clause with table prefix to avoid ambiguous column names
+    const mappedSortField = sortField === 'user_id' ? 'customer_id' : sortField;
     const orderBy = buildOrderByClause(
-      sortField === 'user_id' ? 'customer_id' : sortField,
+      mappedSortField,
       sortOrder,
       ['id', 'customer_id', 'module_id', 'status', 'created_at', 'updated_at', 'completed_at'],
       'created_at',
       'DESC'
-    );
+    ).replace('ORDER BY ', 'ORDER BY r.');
 
     // Base query with JOINs
     const baseQuery = `
       SELECT
         r.id, r.customer_id as user_id, r.module_id, r.report_type, r.status,
         r.input_data, r.api_response, r.generated_html,
-        r.created_at, r.updated_at, r.completed_at,
+        r.created_at as created_at, r.updated_at as updated_at, r.completed_at as completed_at,
         m.name as module_name, m.display_name as module_display_name
       FROM reports r
       LEFT JOIN modules m ON r.module_id = m.id
@@ -116,6 +117,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const db = getDatabase();
+
+    // Check if customer has an active license for this module
+    const license = db
+      .prepare(
+        `SELECT id, quantity_total, quantity_used, status, expiration_date
+         FROM licenses
+         WHERE customer_id = ? AND module_id = ? AND status = 'active'
+         ORDER BY expiration_date DESC
+         LIMIT 1`
+      )
+      .get(customerId, body.module_id) as any;
+
+    if (!license) {
+      return NextResponse.json(
+        { error: 'No active license found for this module' },
+        { status: 403 }
+      );
+    }
+
+    // Check if license has available quantity
+    const remainingQuantity = license.quantity_total - license.quantity_used;
+    if (remainingQuantity <= 0) {
+      return NextResponse.json(
+        { error: 'License limit reached. No credits available.' },
+        { status: 403 }
+      );
+    }
+
+    // Check if license is expired
+    const expirationDate = new Date(license.expiration_date);
+    if (expirationDate < new Date()) {
+      return NextResponse.json(
+        { error: 'License has expired' },
+        { status: 403 }
+      );
+    }
+
     // Insert report
     const result = execute(
       `INSERT INTO reports (
@@ -134,8 +173,15 @@ export async function POST(request: NextRequest) {
       ]
     );
 
+    // Decrement license usage
+    execute(
+      `UPDATE licenses
+       SET quantity_used = quantity_used + 1
+       WHERE id = ?`,
+      [license.id]
+    );
+
     // Fetch the created report
-    const db = getDatabase();
     const report = db
       .prepare(
         `SELECT

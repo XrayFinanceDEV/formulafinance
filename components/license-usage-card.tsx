@@ -11,7 +11,7 @@ import {
   isLicenseExpiringSoon,
   isLicenseExpired,
   getLicenseStatusColor,
-} from '@/hooks/use-licenses';
+} from '@/hooks/use-licenses-query';
 import { getProductDisplayName } from '@/hooks/use-products';
 import { cn } from '@/lib/utils';
 

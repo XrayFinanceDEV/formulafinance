@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useGetIdentity } from 'ra-core';
+import { useAuth } from '@/lib/auth/auth-provider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,16 +17,18 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 function ProfilePageContent() {
   const router = useRouter();
-  const { data: identity, isLoading, refetch } = useGetIdentity();
+  const { user, loading } = useAuth();
   const [name, setName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
-  // Initialize form when identity loads
-  if (!isLoading && identity && !name) {
-    setName(identity.fullName || '');
-    setAvatarUrl(identity.avatar || '');
-  }
+  // Initialize form when user loads
+  useEffect(() => {
+    if (!loading && user) {
+      setName(user.user_metadata?.full_name || '');
+      setAvatarUrl(user.user_metadata?.avatar_url || '');
+    }
+  }, [user, loading]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -46,7 +48,8 @@ function ProfilePageContent() {
       if (error) throw error;
 
       toast.success('Profilo aggiornato con successo');
-      refetch();
+      // Refresh the page to update the user data
+      window.location.reload();
     } catch (error: any) {
       console.error('Update profile error:', error);
       toast.error(error.message || 'Errore durante l\'aggiornamento del profilo');
@@ -59,7 +62,7 @@ function ProfilePageContent() {
     toast.info('Funzionalità di reset password in arrivo');
   };
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p className="text-muted-foreground">Caricamento...</p>
@@ -67,11 +70,11 @@ function ProfilePageContent() {
     );
   }
 
-  if (!identity) {
+  if (!user) {
     return null;
   }
 
-  const initials = (identity.fullName || 'U')
+  const initials = (user.user_metadata?.full_name || user.email?.split('@')[0] || 'U')
     .split(' ')
     .map(n => n[0])
     .join('')
@@ -103,7 +106,7 @@ function ProfilePageContent() {
                 {/* Avatar Section */}
                 <div className="flex items-center gap-4">
                   <Avatar className="h-20 w-20">
-                    <AvatarImage src={avatarUrl || identity.avatar} alt={name || identity.fullName} />
+                    <AvatarImage src={avatarUrl || user.user_metadata?.avatar_url} alt={name || user.user_metadata?.full_name || user.email || 'User'} />
                     <AvatarFallback className="text-lg">{initials}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
@@ -140,7 +143,7 @@ function ProfilePageContent() {
                   <Input
                     id="email"
                     type="email"
-                    value={identity.email || ''}
+                    value={user.email || ''}
                     disabled
                     className="bg-muted"
                   />

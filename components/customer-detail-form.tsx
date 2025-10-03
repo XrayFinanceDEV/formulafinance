@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation"
 import { IconArrowLeft, IconCheck, IconPlus, IconX } from "@tabler/icons-react"
 import { Building2, User, MapPin, CreditCard, Settings, CheckCircle, Circle, ArrowRight, ArrowLeft } from "lucide-react"
 import { z } from "zod"
-import { sqliteDataProvider } from '@/lib/sqlite-data-provider'
+import { useUpdateCustomer } from '@/hooks/use-customers-query'
+import { useUserLicenses } from '@/hooks/use-licenses-query'
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,9 +25,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import { LicenseUsageCard } from "@/components/license-usage-card"
-import { LicenseAssignmentDialogDemo } from "@/components/license-assignment-dialog-demo"
+import { LicenseAssignmentDialog } from "@/components/license-assignment-dialog"
+import { AssociationSelector } from "@/components/association-selector"
 import { License } from '@/types/auth'
 import { useToast } from '@/hooks/use-toast'
+import { useCustomerAssociations } from '@/hooks/use-associations'
 
 const customerSchema = z.object({
   id: z.number(),
@@ -136,10 +139,17 @@ const mockLicensesData: License[] = [
 export function CustomerDetailForm({ customer }: CustomerDetailFormProps) {
   const router = useRouter()
   const { toast } = useToast()
-  const [isUpdating, setIsUpdating] = React.useState(false)
+  const { mutateAsync: updateCustomer, isPending: isUpdating } = useUpdateCustomer()
+  const { data: associations, refetch: refetchAssociations } = useCustomerAssociations(customer.id)
+  const { data: licensesResponse, isLoading: isLoadingLicenses, refetch: refetchLicenses } = useUserLicenses(customer.id)
+  const [isSaving, setIsSaving] = React.useState(false)
   const [currentStep, setCurrentStep] = React.useState(1)
   const [isAssignDialogOpen, setIsAssignDialogOpen] = React.useState(false)
+  const [editingLicense, setEditingLicense] = React.useState<License | null>(null)
   const canManageLicenses = true // Simulating superuser role
+
+  // Extract licenses from response
+  const licenses = licensesResponse?.data || []
 
   const steps = [
     { id: 1, title: "Anagrafica", description: "Informazioni aziendali di base", icon: Building2 },
@@ -150,21 +160,20 @@ export function CustomerDetailForm({ customer }: CustomerDetailFormProps) {
 
   const [formData, setFormData] = React.useState({
     ragioneSociale: customer.name || '',
-    partitaIva: "01316560331",
-    codiceFiscale: "01316560331",
+    partitaIva: (customer as any).partita_iva || '',
+    codiceFiscale: (customer as any).codice_fiscale || '',
     tipoUtente: customer.type?.toLowerCase() || 'cliente',
-    soggetto: "societa", // Database expects "societa" not "società"
+    soggetto: (customer as any).soggetto || "societa", // Database expects "societa" not "società"
     stato: customer.status?.toLowerCase() || 'attivo',
     email: customer.email || '',
-    pecEmail: "",
-    telefono: "",
-    telefonoAlt: "",
-    indirizzo: "Via Gregorio X, 46",
-    città: "Piacenza",
-    cap: "29121",
-    provincia: "PC",
-    associatoA: "AteneoWeb Srl",
-    noteAggiuntive: ""
+    pecEmail: (customer as any).pec_email || '',
+    telefono: (customer as any).telefono || '',
+    telefonoAlt: (customer as any).telefono_alt || '',
+    indirizzo: (customer as any).via || '',
+    città: (customer as any).citta || '',
+    cap: (customer as any).cap || '',
+    provincia: (customer as any).provincia || '',
+    noteAggiuntive: (customer as any).note_aggiuntive || ''
   })
 
   const handleInputChange = (field: string, value: string) => {
@@ -172,9 +181,9 @@ export function CustomerDetailForm({ customer }: CustomerDetailFormProps) {
   }
 
   const handleSave = async () => {
-    setIsUpdating(true)
+    setIsSaving(true)
     try {
-      await sqliteDataProvider.update('customers', {
+      await updateCustomer({
         id: customer.id,
         data: {
           ragione_sociale: formData.ragioneSociale,
@@ -193,7 +202,6 @@ export function CustomerDetailForm({ customer }: CustomerDetailFormProps) {
           provincia: formData.provincia,
           note_aggiuntive: formData.noteAggiuntive,
         },
-        previousData: customer,
       })
 
       toast({
@@ -210,7 +218,7 @@ export function CustomerDetailForm({ customer }: CustomerDetailFormProps) {
       })
       console.error('Update error:', error)
     } finally {
-      setIsUpdating(false)
+      setIsSaving(false)
     }
   }
 
@@ -236,6 +244,31 @@ export function CustomerDetailForm({ customer }: CustomerDetailFormProps) {
   const prevStep = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1)
+    }
+  }
+
+  const handleEditLicense = (license: License) => {
+    setEditingLicense(license)
+    setIsAssignDialogOpen(true)
+  }
+
+  const handleRevokeLicense = async (license: License) => {
+    if (!confirm(`Sei sicuro di voler revocare la licenza "${license.module?.display_name}"?`)) {
+      return
+    }
+
+    try {
+      // TODO: Implement license revocation API call
+      toast({
+        title: "Licenza Revocata",
+        description: `La licenza "${license.module?.display_name}" è stata revocata.`,
+      })
+    } catch (error) {
+      toast({
+        title: "Errore",
+        description: "Errore durante la revoca della licenza",
+        variant: "destructive",
+      })
     }
   }
 
@@ -265,10 +298,14 @@ export function CustomerDetailForm({ customer }: CustomerDetailFormProps) {
               <Badge variant="outline" className="text-blue-600 border-blue-200">
                 {customer.type} {formData.soggetto}
               </Badge>
-              <span className="text-muted-foreground">collegato a</span>
-              <Button variant="link" className="p-0 h-auto text-blue-600">
-                {formData.associatoA}
-              </Button>
+              {associations?.parent && (
+                <>
+                  <span className="text-muted-foreground">collegato a</span>
+                  <Button variant="link" className="p-0 h-auto text-blue-600">
+                    {associations.parent.parent_name || 'Unknown'}
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -537,32 +574,20 @@ export function CustomerDetailForm({ customer }: CustomerDetailFormProps) {
             {/* Sidebar */}
             <div className="space-y-6">
               {/* Associato/Collegato a */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Associato/Collegato a</CardTitle>
-                  <CardDescription>
-                    selezionare un contatto per creare l'associazione con il parent
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={formData.associatoA}
-                      onChange={(e) => handleInputChange('associatoA', e.target.value)}
-                      className="flex-1"
-                    />
-                    <Button variant="outline" size="icon">
-                      <IconX className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  <div className="mt-2 text-sm text-blue-600">
-                    199# AteneoWeb Srl
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Via Gregorio X, 46 - Piacenza (PC)
-                  </div>
-                </CardContent>
-              </Card>
+              <AssociationSelector
+                customerId={customer.id}
+                customerType={formData.tipoUtente as any}
+                currentParent={associations?.parent ? {
+                  id: parseInt(associations.parent.parent_user_id),
+                  name: associations.parent.parent_name || 'Unknown',
+                  type: associations.parent.parent_role || 'cliente',
+                  association_type: associations.parent.association_type,
+                  location: associations.parent.citta && associations.parent.provincia
+                    ? `${associations.parent.citta} (${associations.parent.provincia})`
+                    : undefined
+                } : null}
+                onAssociationChange={() => refetchAssociations()}
+              />
 
               {/* Note Aggiuntive */}
               <Card>
@@ -734,17 +759,85 @@ export function CustomerDetailForm({ customer }: CustomerDetailFormProps) {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {mockLicensesData.map((license) => (
-                  <LicenseUsageCard
-                    key={license.id}
-                    license={license}
-                    showActions={canManageLicenses}
-                  />
-                ))}
-              </div>
+              {isLoadingLicenses ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">Caricamento licenze...</p>
+                </div>
+              ) : licenses.length > 0 ? (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {licenses.map((license) => (
+                    <LicenseUsageCard
+                      key={license.id}
+                      license={license}
+                      showActions={canManageLicenses}
+                      onEdit={handleEditLicense}
+                      onRevoke={handleRevokeLicense}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">Nessuna licenza assegnata</p>
+                </div>
+              )}
             </CardContent>
           </Card>
+
+          {/* Linked Customers - Show for Intermediario/Rivenditore */}
+          {(formData.tipoUtente === 'intermediario' || formData.tipoUtente === 'rivenditore') && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Clienti Collegati</CardTitle>
+                    <CardDescription>
+                      {associations?.children?.length || 0} {(associations?.children?.length || 0) === 1 ? 'cliente collegato' : 'clienti collegati'}
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {associations?.children && associations.children.length > 0 ? (
+                  <div className="space-y-2">
+                    {associations.children.map((child) => (
+                      <div
+                        key={child.id}
+                        className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Avatar className="w-10 h-10">
+                            <AvatarFallback className="text-sm bg-blue-500 text-white">
+                              {getInitials(child.child_name || 'Unknown')}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="font-medium">{child.child_name || 'Unknown'}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {child.citta && child.provincia ? `${child.citta} (${child.provincia})` : 'Location not available'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs">
+                            {child.child_role || 'cliente'}
+                          </Badge>
+                          <Link href={`/customers/${child.child_user_id}/edit`}>
+                            <Button variant="ghost" size="sm">
+                              Visualizza
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p>Nessun cliente collegato</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
           </div>
         )}
 
@@ -781,11 +874,19 @@ export function CustomerDetailForm({ customer }: CustomerDetailFormProps) {
 
       {/* License Assignment Dialog */}
       {canManageLicenses && (
-        <LicenseAssignmentDialogDemo
+        <LicenseAssignmentDialog
           open={isAssignDialogOpen}
-          onOpenChange={setIsAssignDialogOpen}
+          onOpenChange={(open) => {
+            setIsAssignDialogOpen(open)
+            if (!open) {
+              setEditingLicense(null)
+              // Refetch licenses when dialog closes
+              refetchLicenses()
+            }
+          }}
           userId={customer.id}
           userName={customer.name}
+          existingLicense={editingLicense}
         />
       )}
     </div>

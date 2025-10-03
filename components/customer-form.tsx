@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle, Circle, ArrowRight, ArrowLeft, Building2, User, MapPin, CreditCard, Settings } from "lucide-react"
-import { useCreateCustomer, type Customer } from "@/hooks/use-customers"
+import { useCreateCustomer, type Customer } from "@/hooks/use-customers-query"
 import { toast } from "sonner"
 
 // Step 1: Anagrafica Schema
@@ -41,6 +41,19 @@ const riferimentiSchema = z.object({
     message: "Il telefono deve essere di almeno 10 caratteri.",
   }),
   telefonoAlt: z.string().optional(),
+  password: z.string().min(6, {
+    message: "La password deve essere di almeno 6 caratteri.",
+  }).optional().or(z.literal("")),
+  confirmPassword: z.string().optional().or(z.literal("")),
+}).refine((data) => {
+  // If password is provided, confirmPassword must match
+  if (data.password && data.password.length > 0) {
+    return data.password === data.confirmPassword;
+  }
+  return true;
+}, {
+  message: "Le password non corrispondono",
+  path: ["confirmPassword"],
 })
 
 // Step 3: Indirizzo Schema
@@ -100,7 +113,7 @@ export function CustomerForm() {
   const [userType, setUserType] = useState<string>("cliente")
   const router = useRouter()
 
-  const { createCustomer, isLoading: isCreating } = useCreateCustomer()
+  const { mutateAsync: createCustomer, isPending: isCreating } = useCreateCustomer()
 
   const form = useForm<CustomerFormValues>({
     resolver: zodResolver(customerFormSchema),
@@ -216,7 +229,7 @@ export function CustomerForm() {
   const onSubmit = async (values: CustomerFormValues) => {
     try {
       // Create customer data matching the database schema (snake_case)
-      const customerData = {
+      const customerData: any = {
         ragione_sociale: values.anagrafica.ragioneSociale,
         partita_iva: values.anagrafica.partitaIva,
         codice_fiscale: values.anagrafica.codiceFiscale || null,
@@ -236,8 +249,13 @@ export function CustomerForm() {
         note_aggiuntive: values.relazioni.noteAggiuntive || null,
       }
 
-      // Save to SQLite via API
-      await createCustomer(customerData as any)
+      // Add password if provided (for creating Supabase auth user)
+      if (values.riferimenti.password && values.riferimenti.password.length > 0) {
+        customerData.password = values.riferimenti.password;
+      }
+
+      // Save to SQLite via API (will also create Supabase user if password provided)
+      await createCustomer(customerData)
 
       toast.success('Cliente creato con successo!', {
         description: `${customerData.ragione_sociale} è stato aggiunto al sistema.`
@@ -488,6 +506,47 @@ export function CustomerForm() {
                       </FormItem>
                     )}
                   />
+                </div>
+
+                <Separator className="my-4" />
+
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-muted-foreground" />
+                    <h3 className="text-sm font-medium">Credenziali di Accesso (Opzionale)</h3>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Compila questi campi per creare automaticamente un account utente con accesso alla piattaforma.
+                  </p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="riferimenti.password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Password</FormLabel>
+                          <FormControl>
+                            <Input type="password" placeholder="Minimo 6 caratteri" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="riferimenti.confirmPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Conferma Password</FormLabel>
+                          <FormControl>
+                            <Input type="password" placeholder="Ripeti la password" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>

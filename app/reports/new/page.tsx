@@ -14,15 +14,15 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useModules } from "@/hooks/use-modules"
-import { useCreateReport } from "@/hooks/use-reports"
+import { useModules } from "@/hooks/use-modules-query"
+import { useCreateReport } from "@/hooks/use-reports-query"
 import { toast } from "sonner"
 import { IconFileText, IconChartBar, IconReportMoney } from "@tabler/icons-react"
 
 export default function NewReportPage() {
   const router = useRouter();
   const { data: modules, isLoading } = useModules();
-  const { createReport, isLoading: isCreating } = useCreateReport();
+  const { mutateAsync: createReport, isPending: isCreating } = useCreateReport();
 
   const [selectedModule, setSelectedModule] = useState<{ id: number; name: string; display_name: string } | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -52,6 +52,7 @@ export default function NewReportPage() {
 
     try {
       await createReport({
+        customer_id: 1, // TODO: Get actual customer ID from authenticated user
         module_id: selectedModule.id,
         report_type: selectedModule.name,
         input_data: { codice_fiscale: codiceFiscale },

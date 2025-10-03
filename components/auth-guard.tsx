@@ -1,33 +1,24 @@
 'use client';
 
-import { authProvider } from '@/lib/auth-provider';
+import { useAuth } from '@/lib/auth/auth-provider';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 interface AuthGuardProps {
   children: React.ReactNode;
 }
 
 export function AuthGuard({ children }: AuthGuardProps) {
-  const [isLoading, setIsLoading] = useState(true);
-  const [authenticated, setAuthenticated] = useState(false);
+  const { user, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    // Check authentication status
-    authProvider.checkAuth({})
-      .then(() => {
-        setAuthenticated(true);
-        setIsLoading(false);
-      })
-      .catch(() => {
-        setAuthenticated(false);
-        setIsLoading(false);
-        router.push('/login');
-      });
-  }, [router]);
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
@@ -38,7 +29,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
     );
   }
 
-  if (!authenticated) {
+  if (!user) {
     return null;
   }
 

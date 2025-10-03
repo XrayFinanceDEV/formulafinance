@@ -57,7 +57,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useToast } from "@/hooks/use-toast"
-import { useCustomers, useDeleteCustomer, useCustomerPermissions, Customer } from "@/hooks/use-customers"
+import { useCustomers, useDeleteCustomer, Customer } from "@/hooks/use-customers-query"
+import { usePermissions } from "@/lib/auth/auth-provider"
 
 function getUsageColor(usage: number) {
   if (usage >= 95) return "text-red-600 dark:text-red-400"
@@ -88,8 +89,8 @@ export function CustomersTableEnhanced() {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
 
   const { toast } = useToast()
-  const { canEdit, canDelete, userRole } = useCustomerPermissions()
-  const { deleteCustomer } = useDeleteCustomer()
+  const { canEditCustomers: canEdit, canDeleteCustomers: canDelete, role: userRole } = usePermissions()
+  const { mutateAsync: deleteCustomer } = useDeleteCustomer()
 
   // Fetch customers with ra-core
   // Only include filters if they have values
@@ -97,7 +98,7 @@ export function CustomersTableEnhanced() {
   if (searchQuery) filter.q = searchQuery
   if (typeFilter) filter.type = typeFilter
 
-  const { data: customersData, isLoading, error, refetch } = useCustomers(
+  const { data: customersData, isPending: isLoading, error, refetch } = useCustomers(
     { page, perPage: pageSize },
     { field: sorting[0]?.id || 'id', order: sorting[0]?.desc ? 'DESC' : 'ASC' },
     filter

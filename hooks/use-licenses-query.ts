@@ -1,8 +1,15 @@
-import { useGetList, useGetOne, useCreate, useUpdate, useDelete } from 'ra-core';
-import { License, LicenseAssignmentData } from '@/types/auth';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiClient } from '@/lib/api-client';
+import { queryKeys } from '@/lib/query-keys';
+import { License } from '@/types/auth';
+
+interface LicensesResponse {
+  data: License[];
+  total: number;
+}
 
 /**
- * Hook to fetch all licenses with optional filters
+ * Fetch all licenses with optional filters
  */
 export function useLicenses(params?: {
   page?: number;
@@ -13,51 +20,82 @@ export function useLicenses(params?: {
 }) {
   const { page = 1, perPage = 50, userId, moduleId, status } = params || {};
 
-  const filter: Record<string, any> = {};
-  if (userId) filter.user_id = userId;
-  if (moduleId) filter.module_id = moduleId;
-  if (status) filter.status = status;
+  const filters: Record<string, any> = { page, perPage };
+  if (userId) filters.user_id = userId;
+  if (moduleId) filters.module_id = moduleId;
+  if (status) filters.status = status;
 
-  return useGetList<License>('licenses', {
-    pagination: { page, perPage },
-    sort: { field: 'created_at', order: 'DESC' },
-    filter,
+  return useQuery({
+    queryKey: queryKeys.licenses.list(filters),
+    queryFn: () => apiClient.get<LicensesResponse>('/licenses', filters),
   });
 }
 
 /**
- * Hook to fetch licenses for a specific user
+ * Fetch licenses for a specific user
  */
 export function useUserLicenses(userId: number) {
   return useLicenses({ userId, perPage: 100 });
 }
 
 /**
- * Hook to fetch a single license by ID
+ * Fetch single license by ID
  */
 export function useLicense(id: number) {
-  return useGetOne<License>('licenses', { id });
+  return useQuery({
+    queryKey: queryKeys.licenses.detail(id),
+    queryFn: () => apiClient.get<{ data: License }>(`/licenses/${id}`),
+    select: (response) => response.data,
+    enabled: !!id,
+  });
 }
 
 /**
- * Hook to create a new license
+ * Create new license
  */
 export function useCreateLicense() {
-  return useCreate<License>();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: Partial<License>) =>
+      apiClient.post('/licenses', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.licenses.lists() });
+    },
+  });
 }
 
 /**
- * Hook to update an existing license
+ * Update existing license
  */
 export function useUpdateLicense() {
-  return useUpdate<License>();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Partial<License> }) =>
+      apiClient.put(`/licenses/${id}`, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.licenses.lists() });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.licenses.detail(variables.id)
+      });
+    },
+  });
 }
 
 /**
- * Hook to delete a license
+ * Delete license
  */
 export function useDeleteLicense() {
-  return useDelete<License>();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: number) => apiClient.delete(`/licenses/${id}`),
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.licenses.lists() });
+      queryClient.removeQueries({ queryKey: queryKeys.licenses.detail(id) });
+    },
+  });
 }
 
 /**
