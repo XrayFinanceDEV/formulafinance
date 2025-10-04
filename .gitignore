@@ -41,6 +41,6 @@ yarn-error.log*
 next-env.d.ts
 
 # sqlite database
-/data/
-*.db
 *.db-journal
+/data/*
+!/data/formulafinance.db
